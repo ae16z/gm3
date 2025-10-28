@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Daily GM</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+  <style>
+    body {
+      background-color: #0e0e10;
+      color: white;
+      font-family: "Poppins", sans-serif;
+      text-align: center;
+      padding-top: 100px;
+    }
+    button {
+      background-color: #00c853;
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      border-radius: 12px;
+      font-size: 20px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover {
+      background-color: #00e676;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 18px;
+      opacity: 0.8;
+    }
+    #countdown {
+      margin-top: 15px;
+      font-size: 22px;
+      color: #ffd600;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🌅 GM, fren!</h1>
+  <button id="connectButton">Connect Wallet</button>
+  <button id="gmButton" style="display:none;">GM</button>
+
+  <div id="status"></div>
+  <div id="countdown"></div>
+
+  <script>
+    const CONTRACT_ADDRESS = "0x1e87B0f7F71B2c217dc68004e4fc81c27C44a651";
+    const ABI = [
+      "function GM() external",
+      "function nextGM(address user) view returns (uint256)"
+    ];
+
+    let provider, signer, contract, userAddress;
+
+    const connectButton = document.getElementById("connectButton");
+    const gmButton = document.getElementById("gmButton");
+    const statusDiv = document.getElementById("status");
+    const countdownDiv = document.getElementById("countdown");
+
+    connectButton.onclick = async () => {
+      if (!window.ethereum) {
+        alert("Please install MetaMask!");
+        return;
+      }
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+      provider = new ethers.providers.Web3Provider(window.ethereum);
+      signer = provider.getSigner();
+      userAddress = await signer.getAddress();
+      const network = await provider.getNetwork();
+
+      if (network.chainId !== 8453) {
+        alert("Please switch to Base Mainnet (chainId: 8453)");
+        return;
+      }
+
+      contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      connectButton.style.display = "none";
+      gmButton.style.display = "inline-block";
+      statusDiv.textContent = `Connected: ${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
+      updateCountdown();
+    };
+
+    gmButton.onclick = async () => {
+      try {
+        const tx = await contract.GM();
+        statusDiv.textContent = "⏳ Waiting for confirmation...";
+        await tx.wait();
+        statusDiv.textContent = "✅ GM success!";
+        updateCountdown();
+      } catch (err) {
+        console.error(err);
+        statusDiv.textContent = "❌ Transaction failed or rejected.";
+      }
+    };
+
+    async function updateCountdown() {
+      try {
+        const nextTime = await contract.nextGM(userAddress);
+        const next = nextTime.toNumber() * 1000;
+        const now = Date.now();
+
+        if (next <= now) {
+          countdownDiv.textContent = "You can GM now!";
+          return;
+        }
+
+        const tick = () => {
+          const diff = next - Date.now();
+          if (diff <= 0) {
+            countdownDiv.textContent = "You can GM now!";
+            clearInterval(interval);
+          } else {
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            countdownDiv.textContent = `Next GM in: ${hours}h ${minutes}m ${seconds}s`;
+          }
+        };
+        tick();
+        const interval = setInterval(tick, 1000);
+      } catch (err) {
+        console.error(err);
+        countdownDiv.textContent = "Failed to fetch next GM time.";
+      }
+    }
+  </script>
+</body>
+</html>
